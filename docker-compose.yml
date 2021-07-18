@@ -1,0 +1,57 @@
+version: "2.1"
+services:
+  traefik:
+    container_name: traefik
+    image: "traefik:v2.0.1"
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.docker
+      - --api
+      - --certificatesresolvers.leresolver.acme.email=mymail@gmail.com
+      - --certificatesresolvers.leresolver.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.leresolver.acme.tlschallenge=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    labels:
+      - "traefik.http.routers.traefik.rule=Host(`$domain1`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls.certresolver=leresolver"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.middlewares=authtraefik"
+      - "traefik.http.middlewares.authtraefik.basicauth.users=user:XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+  
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+  
+  ipfs:
+    image: ghcr.io/linuxserver/ipfs
+    container_name: ipfs
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New-York
+    volumes:
+      - /srv/ipfs/data:/config
+    labels:
+      - "traefik.http.routers.digitalsoldier.rule=Host(`$domain2`)"
+      - "traefik.http.routers.digitalsoldier.entrypoints=websecure"
+      - "traefik.http.routers.digitalsoldier.tls=true"
+      - "traefik.http.routers.digitalsoldier.tls.certresolver=leresolver"
+    ports:
+      - 4001:4001
+      - 5001:5001
+      - 8080:8080
+    restart: unless-stopped
+
+networks:
+  default:
+    external:
+      name: ipfsproxy
